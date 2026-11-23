@@ -1,0 +1,16 @@
+build/
+.DS_Store
+*.log
+node_modules/
+.sites-runtime/
+.openai/
+references/
+native/
+public/app.js
+public/index.html
+public/style.css
+.env
+.env.*
+*.zip
+*.tgz
+*.tar.gz

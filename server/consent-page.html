@@ -1,0 +1,41 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'"><title>确认连接本机 Codex · 生意透镜</title><style>
+*{box-sizing:border-box}body{font:16px/1.85 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;background:#f1f6f4;color:#28483d;margin:0;padding:35px 22px}main{max-width:620px;margin:auto;background:white;border:1px solid #d8e6df;border-radius:14px;padding:30px}h1{font-size:25px;line-height:1.6;margin:0 0 18px}p{font-size:15px;color:#60796d}code{display:block;font-family:inherit;font-size:14px;overflow-wrap:anywhere;background:#edf5f0;padding:13px;border-radius:8px;color:#285b42}.actions{display:flex;gap:13px;flex-wrap:wrap;margin-top:26px}button{font:inherit;padding:11px 18px;border-radius:8px;border:1px solid #bacfc2;background:white;color:#476656;cursor:pointer}button.primary{background:#146f50;border-color:#146f50;color:white}button:disabled{opacity:.5;cursor:default}.small{font-size:13px;color:#7a8d82}#result{white-space:pre-wrap;font-size:14px;color:#31734b}#status{font-size:14px;color:#67816e}ul{padding-left:22px;color:#587568;font-size:14px}#work{background:#f2f8f4;padding:15px;border-radius:8px;margin-top:18px}
+</style></head><body><main><h1 id="title">允许这个网页连接本机 Codex？</h1><p>发起请求的网页：</p><code id="website"></code><ul><li>使用这台电脑已经登录的 Codex 分析网页里的业务资料。</li><li>不会把 Codex 登录凭据交给网页，也不会使用网站作者的账号。</li><li>AI 分析需要联网，使用本机账号的可用权限和额度。</li></ul><p class="small">同意后请保持这个确认窗口打开。关闭窗口或点“断开授权”，网页就无法继续调用。</p><div class="actions"><button id="approve" class="primary">允许连接此电脑的 Codex</button><button id="deny">不允许</button></div><p id="status"></p><p id="result" role="status"></p><div id="work" hidden>已连接。可以回到原网页介绍生意、开始分析。<div class="actions"><button id="revoke">断开授权</button></div></div></main>
+<script>
+(function(){
+  'use strict';
+  const config = /*__CONNECTION_CONFIG__*/;
+  const caller=window.opener, controllers=new Map();
+  let approved=false;
+  const $=id=>document.getElementById(id);
+  $('website').textContent=config.requestOrigin;
+  function tell(type,extra={}) { if(caller) caller.postMessage({type,channel:config.channel,...extra},config.requestOrigin); }
+  async function local(route,payload,signal){
+    const response=await fetch('/api/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-Business-Session':config.token},body:JSON.stringify(payload||{}),signal});
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'本机连接未完成操作。');return data;
+  }
+  function revoke(message){approved=false;for(const c of controllers.values())c.abort();controllers.clear();tell('business-lens-disconnected',{message});$('approve').disabled=false;$('work').hidden=true;$('result').textContent=message;$('status').textContent='';}
+  if(!caller){$('approve').disabled=true;$('result').textContent='请回到生意透镜网页，点击“连接本机 Codex”打开这个确认页。';}
+  $('approve').addEventListener('click',async()=>{
+    if(!caller)return;$('approve').disabled=true;$('result').textContent='正在检查本机 Codex 登录…';
+    try{const status=await local('status',{});approved=true;$('title').textContent='已允许连接本机 Codex';$('work').hidden=false;$('result').textContent=status.message;$('status').textContent='授权仅对当前网页窗口有效。';tell('business-lens-ready',{status});}
+    catch(error){$('approve').disabled=false;$('result').textContent=error.message;}
+  });
+  $('deny').addEventListener('click',()=>{revoke('本次没有允许连接。');window.close();});
+  $('revoke').addEventListener('click',()=>{revoke('已断开授权。网页可继续查看示例和已有报告。');});
+  window.addEventListener('message',async event=>{
+    const d=event.data;
+    if(!approved||event.source!==caller||event.origin!==config.requestOrigin||!d||d.channel!==config.channel||d.type!=='business-lens-request'||typeof d.id!=='string'||! /^[a-zA-Z0-9_-]{1,100}$/.test(d.id))return;
+    if(d.method==='cancel'){controllers.get(d.requestId)?.abort();return;}
+    if(d.method==='disconnect'){revoke('已断开授权。');window.close();return;}
+    if(!['status','analyze'].includes(d.method)||controllers.has(d.id)||controllers.size>=3)return;
+    const controller=new AbortController();controllers.set(d.id,controller);
+    if(d.method==='analyze')$('status').textContent='正在按网页提供的业务资料分析，完成后会返回原网页。';
+    try{const result=await local(d.method,d.payload,controller.signal);if(approved)tell('business-lens-response',{id:d.id,result});}
+    catch(error){if(approved)tell('business-lens-response',{id:d.id,error:controller.signal.aborted?'已取消分析。':error.message});}
+    finally{controllers.delete(d.id);if(approved)$('status').textContent='授权仅对当前网页窗口有效。';}
+  });
+  window.addEventListener('beforeunload',()=>{for(const c of controllers.values())c.abort();tell('business-lens-disconnected',{message:'本机确认窗口已关闭。'});});
+  setInterval(()=>{if(caller?.closed)revoke('原网页已关闭，本次授权已结束。');},1500);
+})();
+</script></body></html>

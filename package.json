@@ -1,0 +1,17 @@
+{
+  "name": "business-lens-local",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "生意透镜：本地商业可行性、获客成交和同行分析工具",
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build:mac": "python3 native/build.py",
+    "build:html": "node web/build.mjs",
+    "start:html": "node server/launch.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^31.0.1"
+  }
+}

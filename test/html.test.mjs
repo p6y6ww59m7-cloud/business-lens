@@ -61,7 +61,8 @@ test('standalone file can show the complete real-AI demo without calling a model
   const ui = setup(t, { file: true }); await settle(); click(ui, 'demo'); await settle();
   assert.equal(ui.document.querySelectorAll('#reportContent [data-module]').length, 9);
   assert.equal(ui.document.querySelector('#demoNotice').hidden, false);
-  assert.match(ui.document.querySelector('#reportContent').textContent, /832/);
+  assert.equal(ui.document.querySelector('[data-module="monetization"] .direction-value').textContent,'线索获客');
+  assert.ok(ui.document.querySelectorAll('[data-topic]').length>=3);
   assert.equal(ui.requests.length, 0); assert.equal(ui.errors.length, 0);
 });
 test('one introduction produces nine modules; answering a follow-up updates the AI report', async t => {
@@ -72,6 +73,10 @@ test('one introduction produces nine modules; answering a follow-up updates the 
   assert.equal(ui.document.querySelectorAll('#reportContent [data-module]').length, 9);
   assert.equal(ui.document.querySelector('#questionsPanel').hidden, false);
   assert.match(ui.document.querySelector('#reportContent').textContent, /消费心理账户/);
+  assert.equal(ui.document.querySelectorAll('#reportContent .direction-value').length,9);
+  assert.equal(ui.document.querySelector('#reportContent [data-module="monetization"] .direction-value').textContent,'线索获客');
+  assert.equal(ui.document.querySelector('#reportContent .category-reference'),null);
+  assert.equal(ui.document.querySelectorAll('#reportContent [data-topic]').length,3);
   input(ui, '[data-answer="city"]', '在杭州做线下小班。'); click(ui, 'continue-ai'); await settle(); await settle();
   assert.deepEqual(ui.requests[1].answers, [{ question: '在哪个城市上课？', answer: '在杭州做线下小班。' }]);
   assert.equal(ui.document.querySelector('#questionsPanel').hidden, true);
@@ -90,7 +95,10 @@ test('untrusted report text is inert, and downloaded HTML contains all nine modu
   const saved = new JSDOM(await ui.downloads[0].blob.text());
   assert.equal(saved.window.document.querySelectorAll('[data-module]').length, 9);
   assert.equal(saved.window.document.querySelectorAll('script,button,link[rel="stylesheet"]').length, 0);
-  for (const label of ['广告商单', '线上成交', '线索获客', '自媒体', '本地生活', '电商', '知识付费', '解决方案']) assert.ok(saved.window.document.body.textContent.includes(label));
+  assert.equal(saved.window.document.querySelector('[data-module="monetization"] .direction-value').textContent,'线索获客');
+  assert.equal(saved.window.document.querySelector('[data-module="forms"] .direction-value').textContent,'知识付费');
+  assert.equal(saved.window.document.querySelectorAll('[data-topic]').length,3);
+  assert.ok(saved.window.document.querySelector('[data-topic] p').textContent.includes('练习'));
   assert.match(saved.window.document.body.textContent, /<img src=x/);
   saved.window.close();
 });
@@ -103,4 +111,11 @@ test('editing the brief invalidates export, and a failed retry retains the previ
   assert.match(ui.document.querySelector('#warning').textContent, /网络断开/);
   assert.equal(ui.document.querySelectorAll('#reportContent [data-module]').length, 9);
   assert.match(ui.document.querySelector('#reportContent').textContent, /资料有变化|业务资料有变化/);
+});
+test('malformed direction data is rejected without breaking the page', async t => {
+  const report=sampleReport();report.sections.account.direction={unexpected:'object'};
+  const ui=setup(t,{replies:[report]});await settle();
+  input(ui,'#businessIntro','摄影课');click(ui,'analyze');await settle();await settle();
+  assert.match(ui.document.querySelector('#warning').textContent,/缺少必要内容/);
+  assert.equal(ui.errors.length,0);
 });

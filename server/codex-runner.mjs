@@ -78,6 +78,6 @@ export async function runCodex(input, { signal, binary = findCodex(), timeout = 
     let value;
     try { value = JSON.parse(data); validateReport(value); }
     catch { throw new Error('AI 这次没有返回完整的九项报告，请重试。'); }
-    return { ...value, mode: 'ai', generatedAt: new Date().toISOString() };
+    return { ...value, mode: 'ai', reportVersion: 3, generatedAt: new Date().toISOString() };
   } finally { await rm(work, { recursive: true, force: true }); }
 }

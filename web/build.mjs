@@ -6,6 +6,7 @@ let html = await readFile(path.join(root, 'web/template.html'), 'utf8');
 for (const [token, file] of [['STYLE', 'web/style.css'], ['ENGINE', 'public/engine.js'], ['LOGIC', 'web/logic.js'], ['DEMO', 'web/example-report.json'], ['CONNECTION', 'web/connection.js'], ['APP', 'web/app.js']]) {
   let source = await readFile(path.join(root, file), 'utf8');
   if (token === 'STYLE') source += '\n' + await readFile(path.join(root, 'web/ai-style.css'), 'utf8');
+  if (token === 'STYLE') source += '\n' + await readFile(path.join(root, 'web/clean-style.css'), 'utf8');
   if (token === 'DEMO') source = 'globalThis.BusinessDemo = ' + JSON.stringify(JSON.parse(source)).replaceAll('<', '\\u003c') + ';';
   source = source.replace(/<\/script/gi, '<\\/script');
   html = html.replace(`/*__${token}__*/`, () => source);

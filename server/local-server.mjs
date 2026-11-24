@@ -18,7 +18,7 @@ export function createLocalServer({ analyze = runCodex, status = authStatus, htm
     const send = (code, value) => { if (!res.destroyed) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(value)); } };
     if (req.headers.host !== `127.0.0.1:${address.port}`) return send(403, { error: '仅允许本机页面访问。' });
     const url = new URL(req.url, origin);
-    if (req.method === 'GET' && url.pathname === '/health') return send(200, { application, version: 2 });
+    if (req.method === 'GET' && url.pathname === '/health') return send(200, { application, version: 3 });
     if (req.method === 'GET' && url.pathname === '/connect') {
       const requestOrigin = url.searchParams.get('origin'), channel = url.searchParams.get('channel');
       if (!allowedOrigins.includes(requestOrigin) || !/^[a-zA-Z0-9_-]{20,120}$/.test(channel || '')) return send(403, { error: '只允许指定的生意透镜网页申请连接。' });

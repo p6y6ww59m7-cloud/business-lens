@@ -43,7 +43,8 @@
   function validReport(raw) {
     const ids = S.definition.flatMap(g => g.items.map(i => i.id));
     if (!raw || raw.mode !== 'ai' || !['needs_info', 'ready'].includes(raw.status) || typeof raw.businessName !== 'string' || typeof raw.summary !== 'string' || !raw.sections || !raw.decisions || !Array.isArray(raw.questions) || raw.questions.length > 3 || !Array.isArray(raw.actions) || !raw.actions.length || raw.actions.length > 3 || !Array.isArray(raw.sources) || !Array.isArray(raw.competitors) || !raw.judgment) return false;
-    if (!ids.every(id => raw.sections[id] && ['answer', 'type', 'basis', 'missing'].every(k => typeof raw.sections[id][k] === 'string') && ['已提供信息', '分析推断', '待验证'].includes(raw.sections[id].type))) return false;
+    if (!ids.every(id => raw.sections[id] && ['answer', 'type', 'basis', 'missing'].every(k => typeof raw.sections[id][k] === 'string') && (raw.sections[id].direction === undefined || typeof raw.sections[id].direction === 'string') && ['已提供信息', '分析推断', '待验证'].includes(raw.sections[id].type))) return false;
+    if (raw.topics !== undefined && (!Array.isArray(raw.topics) || raw.topics.length < 3 || raw.topics.length > 5 || !raw.topics.every(t => t && ['title', 'outline', 'goal'].every(k => typeof t[k] === 'string')))) return false;
     if (!['feasibility', 'acquisition', 'competition'].every(id => raw.decisions[id] && ['verdict', 'reason'].every(k => typeof raw.decisions[id][k] === 'string'))) return false;
     if (!raw.questions.every(q => q && typeof q.id === 'string' && /^[a-zA-Z0-9_-]{1,50}$/.test(q.id) && ['question', 'why', 'placeholder'].every(k => typeof q[k] === 'string'))) return false;
     if (!raw.actions.every(a => ['title', 'what', 'watch', 'when'].every(k => typeof a[k] === 'string'))) return false;
@@ -74,10 +75,10 @@
     } catch { state.connected = false; label.textContent = '连接已断开，请重新启动本机连接'; label.className = 'connection offline'; }
   }
   function frameworkBoard(report) {
+    const names = { products: '产品与利润来源', need: '主要需求', reason: '独特成交理由', monetization: '变现形式', forms: 'IP 业务形态', path: '成交链路', account: '消费心理账户', journey: '消费心理旅程', scene: '人群需求场景' };
     return S.definition.map(group => `<section class="column ${group.id === 'product' ? 'product' : group.id}"><header class="column-head"><h2>${group.title}</h2><p>${group.subtitle}</p></header>${group.items.map(item => {
-      const result = report?.sections[item.id];
-      const categories = item.id === 'monetization' ? S.monetizations : item.id === 'forms' ? S.forms : null;
-      return `<article class="module" data-module="${item.id}"><h3>${item.title}</h3><p class="explain">${item.help}${item.term ? `<span class="term">课件名称：${item.term}</span>` : ''}</p>${categories ? `<p class="category-reference">${categories.join(' · ')}</p>` : ''}${result ? `<div class="finding"><span class="tag ${result.type === '待验证' ? 'pending' : result.type === '分析推断' ? 'estimate' : ''}">${esc(result.type)}</span><p>${esc(result.answer)}</p>${result.basis ? `<div class="basis"><strong>依据</strong><p>${esc(result.basis)}</p></div>` : ''}${result.missing ? `<div class="basis missing"><strong>还要确认</strong><p>${esc(result.missing)}</p></div>` : ''}</div>` : `<div class="preview-placeholder">${categories ? 'AI 会说明这门生意适合哪些方式。' : 'AI 分析后，会把判断和依据放在这里。'}</div>`}</article>`;
+      const result = report?.sections[item.id], direction = result?.direction?.trim();
+      return `<article class="module direction-module" data-module="${item.id}"><h3>${names[item.id]}</h3>${result ? `<strong class="direction-value ${direction ? '' : 'direction-unknown'}">${esc(direction || '待重新分析')}</strong><p class="direction-explanation">${esc(result.answer)}</p>${result.basis || result.missing ? `<details class="item-evidence"><summary>查看依据${result.type === '待验证' ? ' · 待验证' : ''}</summary><div><span class="evidence-kind">${esc(result.type)}</span>${result.basis ? `<p>${esc(result.basis)}</p>` : ''}${result.missing ? `<p class="evidence-gap">待确认：${esc(result.missing)}</p>` : ''}</div></details>` : ''}` : '<span class="empty-direction" aria-label="分析后显示方向">—</span>'}</article>`;
     }).join('')}</section>`).join('');
   }
   function renderQuestions() {
@@ -90,16 +91,30 @@
   function reportMarkup(report) {
     const decisionTitles = { feasibility: '值不值得做', acquisition: '获客成交怎么改', competition: '同行有哪些值得学' };
     const j = report.judgment;
-    return `<div class="report-head"><div><p class="eyebrow">AI 商业分析报告</p><h2>${esc(report.businessName || '这门生意')}</h2><p>${esc(report.summary)}</p><p class="report-time">${esc(new Date(report.generatedAt).toLocaleString('zh-CN', { hour12: false }))} · 使用本机 Codex 登录生成</p></div><div class="report-buttons"><button class="button" data-action="view" data-view="form">补充业务介绍</button><button class="button primary" data-action="save-report">保存 HTML 报告</button></div></div><div class="decision-grid">${Object.entries(decisionTitles).map(([id, title]) => `<article class="decision"><h3>${title}</h3><strong>${esc(report.decisions[id].verdict)}</strong><p>${esc(report.decisions[id].reason)}</p></article>`).join('')}</div><div class="framework-title"><h2>产品 · 营销 · 人群</h2><p>对应图二的完整九项。已经知道的、分析推断和待验证内容分别标明。</p></div><div class="framework-board report-board">${frameworkBoard(report)}</div><section class="plain-card"><h3>一个成交或流失判断 <span class="small-tag">${esc(j.status)}</span></h3><div class="fact-grid"><div><h4>观察到什么</h4><p>${esc(j.observation)}</p></div><div><h4>可能说明什么</h4><p>${esc(j.interpretation)}</p></div><div><h4>判断依据</h4><p>${esc(j.basis)}</p></div><div><h4>怎样验证</h4><p>${esc(j.test)}</p></div></div></section>${report.competitors.length ? `<section class="plain-card"><h3>同行或替代方案对照</h3>${report.competitors.map(c => `<article class="peer-result"><h4>${esc(c.name)}</h4><p><strong>卖什么、多少钱：</strong>${esc(c.product)}；${esc(c.price)}</p><p><strong>卖给谁、怎样找到客户：</strong>${esc(c.customers)}；${esc(c.channel)}</p><p><strong>怎样成交：</strong>${esc(c.path)}</p><p><strong>可以借鉴什么：</strong>${esc(c.learn)}</p><p class="hint">依据：${esc(c.basis)}</p>${safeURL(c.url) ? `<a href="${esc(safeURL(c.url))}" target="_blank" rel="noopener noreferrer">查看原始来源</a>` : ''}</article>`).join('')}</section>` : ''}<section class="plain-card"><h3>下一步，先做这几件事</h3><div class="actions-grid">${report.actions.map(a => `<article class="next-action"><h4>${esc(a.title)}</h4><p>${esc(a.what)}</p><p><strong>看什么：</strong>${esc(a.watch)}</p><small>${esc(a.when)}</small></article>`).join('')}</div></section>${report.sources.length ? `<section class="plain-card"><h3>公开资料来源</h3><p class="hint">来源支持的范围见说明；公开页面无法证明同行真实利润。</p>${report.sources.map(source => `<div class="source-item">${safeURL(source.url) ? `<a href="${esc(safeURL(source.url))}" target="_blank" rel="noopener noreferrer">${esc(source.title)}</a>` : `<strong>${esc(source.title)}</strong>`}<p>${esc(source.usedFor)}</p></div>`).join('')}</section>` : '<div class="notice neutral">本次没有列出已核实的公开来源。涉及当前市场和同行的判断，请以报告中的依据与待验证说明为准。</div>'}<div class="report-bottom"><div><strong>想换一门生意？同样介绍情况，就能重新分析。</strong><p>资料不足时，先验证关键假设，不把推断当成已经发生的事实。</p></div><button class="button" data-action="reset">开始另一门生意</button></div>`;
+    const current = Object.values(report.sections).every(item => typeof item.direction === 'string' && item.direction.trim()) && Array.isArray(report.topics);
+    const topicCards = Array.isArray(report.topics) && report.topics.length ? `<div class="topics-grid">${report.topics.map(topic => `<article class="topic-card" data-topic><span class="topic-goal">${esc(topic.goal)}</span><h4>${esc(topic.title)}</h4><p>${esc(topic.outline)}</p></article>`).join('')}</div>` : '<p class="muted">这份旧版报告还没有推荐选题。更新本机连接程序后重新分析，即可补充。</p>';
+    return `${current ? '' : '<div class="notice neutral">这是旧版报告。原内容已保留；更新本机连接程序并重新分析后，会显示每项归属方向及推荐选题。</div>'}
+      <div class="report-head"><div><p class="eyebrow">生意方向与内容选题</p><h2>${esc(report.businessName || '这门生意')}</h2><p>${esc(report.summary)}</p><p class="report-time">${esc(new Date(report.generatedAt).toLocaleString('zh-CN', { hour12: false }))}</p></div><div class="report-buttons"><button class="button" data-action="view" data-view="form">补充介绍</button><button class="button primary" data-action="save-report">保存报告</button></div></div>
+      <div class="framework-board report-board">${frameworkBoard(report)}</div>
+      <section class="topics-section"><header><h3>接下来，推荐做这些选题</h3><p>每个选题讲什么，以及它要解决的问题。</p></header>${topicCards}</section>
+      <details class="report-extra"><summary>更多经营建议与判断依据</summary><div class="extra-body">
+        <div class="decision-grid">${Object.entries(decisionTitles).map(([id, title]) => `<article class="decision"><h3>${title}</h3><strong>${esc(report.decisions[id].verdict)}</strong><p>${esc(report.decisions[id].reason)}</p></article>`).join('')}</div>
+        <section class="plain-card"><h3>成交或流失判断 <span class="small-tag">${esc(j.status)}</span></h3><div class="fact-grid"><div><h4>观察到什么</h4><p>${esc(j.observation)}</p></div><div><h4>可能说明什么</h4><p>${esc(j.interpretation)}</p></div><div><h4>判断依据</h4><p>${esc(j.basis)}</p></div><div><h4>怎样验证</h4><p>${esc(j.test)}</p></div></div></section>
+        ${report.competitors.length ? `<section class="plain-card"><h3>同行或替代方案对照</h3>${report.competitors.map(c => `<article class="peer-result"><h4>${esc(c.name)}</h4><p><strong>产品与价格：</strong>${esc(c.product)}；${esc(c.price)}</p><p><strong>客户与渠道：</strong>${esc(c.customers)}；${esc(c.channel)}</p><p><strong>成交方式：</strong>${esc(c.path)}</p><p><strong>借鉴点：</strong>${esc(c.learn)}</p><p class="hint">依据：${esc(c.basis)}</p>${safeURL(c.url) ? `<a href="${esc(safeURL(c.url))}" target="_blank" rel="noopener noreferrer">查看来源</a>` : ''}</article>`).join('')}</section>` : ''}
+        <section class="plain-card"><h3>优先行动</h3><div class="actions-grid">${report.actions.map(a => `<article class="next-action"><h4>${esc(a.title)}</h4><p>${esc(a.what)}</p><p><strong>观察：</strong>${esc(a.watch)}</p><small>${esc(a.when)}</small></article>`).join('')}</div></section>
+        ${report.sources.length ? `<section class="plain-card"><h3>公开资料来源</h3>${report.sources.map(source => `<div class="source-item">${safeURL(source.url) ? `<a href="${esc(safeURL(source.url))}" target="_blank" rel="noopener noreferrer">${esc(source.title)}</a>` : `<strong>${esc(source.title)}</strong>`}<p>${esc(source.usedFor)}</p></div>`).join('')}</section>` : '<p class="report-source-note">本次没有列出已核实的公开来源，请按各项依据和待确认信息理解。</p>'}
+      </div></details>
+      <div class="report-bottom"><p>换一门生意，也可以按同样方式分析。</p><button class="button" data-action="reset">分析另一门生意</button></div>`;
   }
   function renderReport() {
     const target = $('#reportContent');
-    if (!state.report) { target.innerHTML = `<section class="empty-report"><h2>介绍你的生意，AI 会把九项逐一分析</h2><p>不需要自己填写整套表格。只要提供已知情况，缺的信息会再问你。</p><button class="button primary" data-action="view" data-view="form">去介绍业务</button></section><div class="framework-board preview-board">${frameworkBoard()}</div>`; return; }
+    if (!state.report) { target.innerHTML = `<section class="empty-report"><h2>介绍生意，查看九项方向和推荐选题</h2><p>不需要自己填写整套表格。只要提供已知情况，缺的信息会再问你。</p><button class="button primary" data-action="view" data-view="form">去介绍业务</button></section><div class="framework-board preview-board">${frameworkBoard()}</div>`; return; }
     const stale = state.report.inputFingerprint !== fingerprint(state.project);
     target.innerHTML = (stale ? '<div class="notice warning">业务资料有变化。下方仍是上一次的报告，请重新分析后再使用或导出。</div>' : '') + reportMarkup(state.report);
   }
   function setView(view, scroll = true) {
     state.view = view;
+    document.body.classList.toggle('showing-report', view === 'report');
     for (const value of ['form', 'report', 'method']) $(`#${value}View`).hidden = value !== view;
     document.querySelectorAll('.views [data-view]').forEach(button => { button.classList.toggle('active', button.dataset.view === view); if (button.dataset.view === view) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
     renderQuestions();
@@ -137,7 +152,7 @@
       state.project = snapshot;
       state.report = { ...result.report, inputFingerprint: fingerprint(snapshot), demo: snapshot.demo };
       state.pendingAnswers = {}; saveLocal(); fillProject(); setView('report');
-      toast(state.report.status === 'needs_info' ? '初步分析已完成。再补几句，可以让判断更具体。' : '分析完成，九项内容和下一步建议已整理好。');
+      toast(state.report.status === 'needs_info' ? '已整理初步方向和选题，可以再补充关键信息。' : '已整理九项归属方向和推荐选题。');
     } catch (error) {
       const message = controller.signal.aborted ? '已取消本次分析，已有资料和报告仍保留。' : error.message;
       warning(message); toast(message);

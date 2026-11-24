@@ -13,7 +13,7 @@ async function healthy(url) {
     if (parsed.hostname !== '127.0.0.1' || parsed.protocol !== 'http:') return false;
     const response = await fetch(new URL('/health', parsed), { signal: AbortSignal.timeout(1500) });
     const info = await response.json();
-    return info.application === 'business-lens-local-ai' && info.version >= 2;
+    return info.application === 'business-lens-local-ai' && info.version >= 3;
   } catch { return false; }
 }
 let url;

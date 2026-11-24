@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { sectionIds, validateReport, validateInput, buildPrompt } from '../web/ai-contract.mjs';
 import { sampleReport } from './ai-fixture.mjs';
 
-test('requires every course item and explicitly typed evidence', () => {
+test('keeps all nine items and requires one direction with typed evidence', () => {
   const report = sampleReport(); assert.equal(validateReport(report), report);
   assert.equal(Object.keys(report.sections).length, 9);
   for (const key of sectionIds) {
@@ -11,6 +11,19 @@ test('requires every course item and explicitly typed evidence', () => {
     assert.throws(() => validateReport(damaged));
   }
   report.sections.products.type = '已证明赚钱'; assert.throws(() => validateReport(report));
+});
+test('classification chooses a main business direction rather than listing alternatives', () => {
+  const report=sampleReport();report.sections.monetization.direction='广告商单、线索获客';
+  assert.throws(()=>validateReport(report));
+  report.sections.monetization.direction='线索获客';report.sections.forms.direction='本地生活、知识付费';
+  assert.throws(()=>validateReport(report));
+  report.sections.forms.direction='知识付费';report.sections.account.direction='';assert.throws(()=>validateReport(report));
+});
+test('topic suggestions include distinct titles, content outlines and goals', () => {
+  const report=sampleReport();assert.equal(validateReport(report).topics.length,3);
+  report.topics[1].title=report.topics[0].title;assert.throws(()=>validateReport(report));
+  report.topics[1].title='另一个选题';report.topics[1].outline='';assert.throws(()=>validateReport(report));
+  report.topics=report.topics.slice(0,2);assert.throws(()=>validateReport(report));
 });
 test('follow-ups are bounded and require stable nonexecutable identifiers', () => {
   const report = sampleReport();
